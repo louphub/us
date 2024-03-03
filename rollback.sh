@@ -4,21 +4,25 @@
 ARTIFACTORY_URL="https://louphub.jfrog.io/artifactory"
 REPOSITORY_NAME="fossa-generic-local"
 
-# Validate if necessary environment variables are set
-if [[ -z "${ACCESS_TOKEN}" ]]; then
-    echo "ACCESS_TOKEN environment variable is not set. Exiting..."
-    exit 1
-fi
-
 # Function to roll back to a specific version
 rollback_to_version() {
     local version_to_rollback=$1
+    local release_directory="$REPOSITORY_NAME/releases/$version_to_rollback"
     
     echo "Starting rollback to version: $version_to_rollback"
 
-    # Fetch assets for the specified version
-    assets_urls=$(curl -s "https://api.github.com/repos/fossas/fossa-cli/releases/tags/v$version_to_rollback" | jq -r '.assets[].browser_download_url')
+    # Fetch the release data
+    release_data=$(curl -s "https://api.github.com/repos/fossas/fossa-cli/releases/tags/v$version_to_rollback")
     
+    # Check if the release data is valid
+    if [ -z "$release_data" ] || ! echo "$release_data" | jq . > /dev/null 2>&1; then
+        echo "Failed to fetch release data or data is invalid. Exiting..."
+        exit 1
+    fi
+
+    # Extract assets URLs
+    assets_urls=$(echo "$release_data" | jq -r '.assets[].browser_download_url')
+
     # Check if no assets were found
     if [ -z "$assets_urls" ] || [ "$assets_urls" == "null" ]; then
         echo "No assets found for version $version_to_rollback. Exiting..."
@@ -27,6 +31,11 @@ rollback_to_version() {
 
     # Iterate over each asset and process it
     for url in $assets_urls; do
+        if [ -z "$url" ] || [ "$url" == "null" ]; then
+            echo "Invalid asset URL encountered. Skipping..."
+            continue
+        fi
+
         local file_name=$(basename "$url")
         
         echo "Downloading $file_name ..."
@@ -35,8 +44,10 @@ rollback_to_version() {
             exit 1
         fi
 
-        echo "Uploading $file_name to Artifactory..."
-        if ! curl -H "Authorization: Bearer $ACCESS_TOKEN" -T "$file_name" "$ARTIFACTORY_URL/$REPOSITORY_NAME/$file_name"; then
+        local upload_path="$ARTIFACTORY_URL/$release_directory/$file_name"
+
+        echo "Uploading $file_name to Artifactory at $upload_path..."
+        if ! curl -H "Authorization: Bearer ${ACCESS_TOKEN}" -T "$file_name" "$upload_path"; then
             echo "Failed to upload $file_name to Artifactory. Exiting..."
             rm "$file_name"  # Clean up the downloaded file
             exit 1
