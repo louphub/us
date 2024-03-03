@@ -1,0 +1,21 @@
+name: Rollback FOSSA CLI Version
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to rollback to'
+        required: true
+        type: string
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      
+      - name: Rollback to specified version
+        run: bash ./rollback.sh ${{ github.event.inputs.version }}
+        env:
+          ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}

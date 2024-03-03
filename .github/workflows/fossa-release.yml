@@ -1,0 +1,20 @@
+name: FOSSA CLI Version Check and Update
+
+on:
+  schedule:
+    # Runs at 00:00 every Friday
+    - cron: '0 0 * * 5'
+  workflow_dispatch:
+
+jobs:
+  check-and-update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      
+      - name: Run FOSSA CLI version check and update script
+        run: bash ./release.sh
+        env:
+          ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
